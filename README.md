@@ -59,7 +59,14 @@ dig +short giesbert.svetho.net
 
 ```sh
 apt install git nginx certbot python3-certbot-nginx
-git clone https://github.com/svethole/giesbert.git /var/www/giesbert
+git clone git@github.com:svethole/giesbert.git /var/www/giesbert
+```
+
+Dafür braucht der Server einen SSH-Schlüssel, den GitHub kennt. Prüfen lässt sich das mit `ssh -T git@github.com`: Kommt „Hi …! You've successfully authenticated“, passt alles.
+Wurde das Repo schon per https geklont, lässt es sich nachträglich umstellen:
+
+```sh
+git -C /var/www/giesbert remote set-url origin git@github.com:svethole/giesbert.git
 ```
 
 Einen Dienst braucht es nicht – nginx liefert die Dateien direkt aus `/var/www/giesbert/public` aus.
