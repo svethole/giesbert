@@ -1,2 +1,10 @@
-.DS_Store
+# Echte Daten gehören nie ins Repo
+data/
+*.db
+*.db-wal
+*.db-shm
+*.env
+!*.env.example
 *.zip
+__pycache__/
+.DS_Store

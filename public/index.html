@@ -22,6 +22,8 @@
     </button>
   </header>
 
+  <div class="offline" id="offline" hidden role="status">Keine Verbindung zum Server – Deine Änderungen werden nachgeholt, sobald er wieder erreichbar ist.</div>
+
   <main id="main">
     <section class="hero" id="hero"></section>
     <section id="list" aria-live="polite"></section>
@@ -90,6 +92,8 @@
         <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
       </header>
       <p class="muted" id="edit-sub"></p>
+      <div class="edit-image" id="edit-image"></div>
+      <input type="file" id="file-photo" accept="image/*" hidden>
       <label class="field">
         <span>Spitzname <small>(optional)</small></span>
         <input type="text" id="edit-nickname" maxlength="60">
@@ -145,13 +149,16 @@
       <button type="button" class="btn ghost" id="btn-notify">Mitteilungen erlauben</button>
       <p class="muted small" id="notify-note"></p>
 
-      <h3>Daten sichern</h3>
-      <p class="muted small">Deine Pflanzen werden nur in diesem Browser gespeichert. Mach ab und zu eine Sicherung – oder übertrage sie so auf ein anderes Gerät.</p>
+      <h3>Daten</h3>
+      <p class="muted small">Deine Pflanzen und Bilder liegen in der Datenbank auf Deinem Server – auf allen Geräten dieselben. Zusätzlich kannst Du hier die Pflanzenliste als Datei sichern (ohne Bilder).</p>
       <div class="row-btns">
         <button type="button" class="btn" id="btn-export">Exportieren</button>
         <button type="button" class="btn" id="btn-import">Importieren</button>
         <input type="file" id="file-import" accept="application/json,.json" hidden>
       </div>
+
+      <h3>Bilder</h3>
+      <p class="muted small">Neue Pflanzen bekommen automatisch ein Foto aus Wikipedia bzw. Wikimedia Commons (Urheber und Lizenz stehen beim Bild). Ein eigenes Foto lädst Du hoch, indem Du auf die Pflanze tippst.</p>
 
       <h3>Über die Werte</h3>
       <p class="muted small">Die Gießintervalle sind Richtwerte für normale Wohnräume. Im Winter (November–Februar) brauchen die meisten Pflanzen deutlich weniger Wasser. Im Zweifel: Finger in die Erde – ist sie in 2&nbsp;cm Tiefe noch feucht, einfach „Morgen nochmal“ tippen.</p>

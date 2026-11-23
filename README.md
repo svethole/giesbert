@@ -9,29 +9,30 @@ Ziel: `https://giesbert.svetho.net`
 
 - Pflanzen per deutschem Namen oder lateinischem Binom hinzufügen. Die eingebaute Datenbank kennt ca. 100 Zimmerpflanzen und verzeiht Tippfehler.
 - Unbekannte Pflanzen: Online-Suche über die freie [GBIF-API](https://www.gbif.org/developer/species) (ohne Schlüssel) oder einfach „so anlegen“.
+- **Bilder:** Neue Pflanzen bekommen automatisch ein Foto aus Wikipedia bzw. Wikimedia Commons, mit Urheber- und Lizenzangabe. Alternativ lässt sich pro Pflanze ein eigenes Foto hochladen, am Handy auch direkt mit der Kamera.
 - Das Gießintervall passt sich automatisch an die Jahreszeit an (im Winter seltener) und lässt sich per +/− anpassen.
 - „Gegossen“, „Alle gegossen“ und „Morgen nochmal“ (wenn die Erde noch feucht ist), jeweils mit Rückgängig.
 - Dezenter Hinweis „Dünger wäre mal wieder nett“, nur März–September und pro Pflanze abschaltbar.
 - Erinnerung als wiederkehrender Kalendertermin (`.ics`), optional Browser-Mitteilungen und App-Badge.
-- Export/Import als JSON. Läuft offline, lässt sich am Handy installieren (PWA), hell & dunkel.
-
-Die Seite ist rein statisch: kein PHP, keine Datenbank, kein Build-Schritt. Die Pflanzen werden **nur im Browser** gespeichert (`localStorage`), der Server liefert bloß die Dateien aus.
+- Alle Daten liegen in einer SQLite-Datenbank auf dem Server – auf jedem Gerät dieselben. Fällt die Verbindung kurz aus, merkt sich die App die Änderungen und trägt sie nach.
+- Lässt sich am Handy installieren (PWA), hell & dunkel.
 
 ## Aufbau
 
 | Pfad | Inhalt |
 |---|---|
-| `public/` | Die App selbst – nur dieser Ordner ist von außen erreichbar |
+| `server.py` | Kleiner Python-Server (nur Standardbibliothek): liefert die App aus, JSON-Schnittstelle unter `/api/`, holt Bilder von Wikipedia |
+| `public/` | Die Weboberfläche |
 | `public/plants.js` | Pflegedatenbank (Gießabstände, Düngeabstände, Tipps) |
-| `public/app.js` | Programmlogik |
-| `public/sw.js` | Service Worker für Offline-Betrieb |
-| `deploy/nginx-giesbert.conf` | nginx-Konfiguration für den Server |
+| `public/app.js` | Programmlogik im Browser |
+| `deploy/` | systemd-Dienst, nginx-Konfiguration, Sicherungsskript |
+
+Die Datenbank (Standard: `data/giesbert.db`, auf dem Server `/var/lib/giesbert/giesbert.db`) enthält drei Tabellen: `plants` (die Pflanzen), `images` (Fotos samt Bildnachweis) und `waterings` (Gieß-Verlauf).
 
 ## Lokal testen
 
 ```sh
-cd public
-python3 -m http.server 8000      # → http://localhost:8000
+python3 server.py            # → http://127.0.0.1:8090
 ```
 
 ---
@@ -40,7 +41,9 @@ python3 -m http.server 8000      # → http://localhost:8000
 
 Die Befehle gehen von Debian/Ubuntu mit nginx aus (wie bei den anderen Projekten auf dem Hostinger-Server).
 
-Der Projektordner `/var/www/giesbert` gehört dem normalen Benutzer `svetho`. Darum laufen `git clone` und `git pull` **ohne** `sudo` – und nutzen so auch dessen SSH-Schlüssel. `sudo` braucht es nur für Paketinstallation, nginx und certbot.
+Der Projektordner `/var/www/giesbert` gehört dem normalen Benutzer `svetho`. Darum laufen `git clone` und `git pull` **ohne** `sudo` – und nutzen so auch dessen SSH-Schlüssel. `sudo` braucht es nur für Pakete, systemd, nginx und certbot. Der Dienst selbst läuft als eigener Systembenutzer ohne Anmeldung (`DynamicUser`) und darf nur in `/var/lib/giesbert` schreiben.
+
+> **Schon die erste (rein statische) Fassung im Einsatz?** Dann direkt zu [Umstieg auf die Datenbank-Fassung](#umstieg-auf-die-datenbank-fassung) springen.
 
 ### 1. DNS-Eintrag prüfen
 
@@ -60,7 +63,7 @@ dig +short giesbert.svetho.net
 ### 2. Dateien holen
 
 ```sh
-sudo apt install git nginx certbot python3-certbot-nginx
+sudo apt install git python3 nginx certbot python3-certbot-nginx apache2-utils
 sudo mkdir /var/www/giesbert && sudo chown svetho: /var/www/giesbert
 git clone git@github.com:svethole/giesbert.git /var/www/giesbert
 ```
@@ -74,9 +77,29 @@ Wurde das Repo schon per https geklont, lässt es sich nachträglich umstellen:
 git -C /var/www/giesbert remote set-url origin git@github.com:svethole/giesbert.git
 ```
 
-Einen Dienst braucht es nicht – nginx liefert die Dateien direkt aus `/var/www/giesbert/public` aus.
+### 3. Dienst einrichten und starten
 
-### 3. nginx einrichten
+```sh
+sudo cp /var/www/giesbert/deploy/giesbert.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now giesbert
+systemctl status giesbert            # sollte „active (running)“ zeigen
+curl -s http://127.0.0.1:8090/api/plants   # → {"plants": []}
+```
+
+Optional: Wikimedia bittet darum, dass sich Programme mit einer Kontaktmöglichkeit ausweisen. Dafür `deploy/giesbert.env.example` nach `/etc/giesbert.env` kopieren, die Zeile anpassen und einkommentieren, dann `sudo chmod 600 /etc/giesbert.env && sudo systemctl restart giesbert`.
+
+### 4. Passwort festlegen
+
+Weil die Pflanzen und Fotos jetzt auf dem Server liegen, ist die Seite mit Benutzername und Passwort geschützt:
+
+```sh
+sudo htpasswd -c /etc/nginx/htpasswd-giesbert DEINNAME
+```
+
+(`-c` legt die Datei neu an – für weitere Benutzer ohne `-c` aufrufen.)
+
+### 5. nginx einrichten
 
 ```sh
 sudo cp /var/www/giesbert/deploy/nginx-giesbert.conf /etc/nginx/sites-available/giesbert
@@ -84,62 +107,112 @@ sudo ln -s /etc/nginx/sites-available/giesbert /etc/nginx/sites-enabled/giesbert
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Jetzt sollte http://giesbert.svetho.net die App zeigen.
-
-### 4. HTTPS einschalten
+### 6. HTTPS einschalten
 
 ```sh
 sudo certbot --nginx -d giesbert.svetho.net
 ```
 
-Certbot ergänzt die HTTPS-Einstellungen und die Umleitung von http auf https selbst. **HTTPS ist Pflicht:** Ohne HTTPS funktionieren weder der Offline-Betrieb noch das Installieren am Handy.
+Certbot ergänzt die HTTPS-Einstellungen und die Umleitung von http auf https selbst. **HTTPS ist Pflicht:** Ohne HTTPS funktionieren weder der Offline-Betrieb noch das Installieren am Handy – und das Passwort ginge unverschlüsselt durchs Netz.
 
-### 5. Ausprobieren
+### 7. Tägliche Sicherung
 
-- https://giesbert.svetho.net aufrufen und eine Pflanze anlegen.
+```sh
+sudo crontab -e
+```
+
+und diese Zeile ergänzen:
+
+```
+25 3 * * * /var/www/giesbert/deploy/backup.sh
+```
+
+Jede Nacht um 3:25 Uhr landet dann eine Kopie der Datenbank (inklusive aller Bilder) in `/var/backups/giesbert/`. Sicherungen älter als 60 Tage werden gelöscht. Einmal von Hand ausprobieren:
+
+```sh
+sudo /var/www/giesbert/deploy/backup.sh && sudo ls -la /var/backups/giesbert
+```
+
+### 8. Ausprobieren
+
+- https://giesbert.svetho.net aufrufen, anmelden und eine Pflanze anlegen – nach ein, zwei Sekunden sollte ihr Foto erscheinen.
+- Auf eine Pflanze tippen → „📷 Eigenes Foto“ zum Hochladen.
 - Am Handy: im Browser-Menü „Zum Home-Bildschirm“ bzw. „App installieren“ wählen.
 - In den Einstellungen (⚙️) den Kalendertermin herunterladen und in den eigenen Kalender importieren.
 
-### Passwortschutz (optional)
+---
 
-Eigentlich nicht nötig: Auf dem Server liegen keine persönlichen Daten, nur die App. Wer die Seite trotzdem nicht öffentlich haben will:
+## Umstieg auf die Datenbank-Fassung
 
-```sh
-sudo apt install apache2-utils
-sudo htpasswd -c /etc/nginx/htpasswd-giesbert DEINNAME
-```
+Für alle, bei denen schon die erste, rein statische Fassung läuft (nginx liefert dort `public/` direkt aus).
 
-Dann in `/etc/nginx/sites-available/giesbert` die beiden Zeilen `auth_basic …` einkommentieren (das `#` entfernen, z. B. mit `sudo nano`) und `sudo nginx -t && sudo systemctl reload nginx` ausführen. Die App ist dafür vorbereitet (das Manifest wird mit Anmeldedaten geladen), am Handy muss man sich dann aber gelegentlich neu anmelden.
+1. **Sicherheitshalber** in der laufenden App unter ⚙️ → „Exportieren“ eine Sicherungsdatei speichern.
+2. Neue Fassung holen:
 
-### Aktualisieren
+   ```sh
+   cd /var/www/giesbert && git pull
+   ```
 
-```sh
-cd /var/www/giesbert && git pull
-```
+3. Schritte [3. Dienst](#3-dienst-einrichten-und-starten), [4. Passwort](#4-passwort-festlegen) und [5. nginx](#5-nginx-einrichten) ausführen. Beim `ln -s` meldet sich ein „File exists“ – das ist in Ordnung, die Verknüpfung gibt es ja schon.
+4. Weil die nginx-Datei ersetzt wurde, sind die HTTPS-Ergänzungen von Certbot weg. Also noch einmal:
 
-Mehr ist nicht nötig – kein `sudo`, kein Neustart. Weil nginx `Cache-Control: no-cache` schickt, holt sich der Browser die neue Fassung beim nächsten Öffnen.
-Hat sich `deploy/nginx-giesbert.conf` geändert, die Datei erneut mit `sudo cp` nach `/etc/nginx/sites-available/giesbert` kopieren. **Achtung:** Dabei gehen die Ergänzungen von Certbot verloren – also danach `sudo certbot --nginx -d giesbert.svetho.net` noch einmal ausführen (Certbot nimmt das vorhandene Zertifikat).
+   ```sh
+   sudo certbot --nginx -d giesbert.svetho.net
+   ```
 
-### Fehlersuche
+   Fragt Certbot, was mit dem vorhandenen Zertifikat passieren soll, „1: Attempt to reinstall this existing certificate“ wählen.
+5. Schritt [7. Sicherung](#7-tägliche-sicherung) einrichten.
+6. Die App **auf dem Gerät öffnen, auf dem die Pflanzen bisher gespeichert waren**. Sie zieht sie beim ersten Start automatisch in die Datenbank um („… Pflanzen in die Datenbank übernommen 🎉“) und sucht für jede ein Foto. Ab dann sind sie auf allen Geräten da.
 
-```sh
-sudo nginx -t                                # Konfiguration in Ordnung?
-sudo tail -n 50 /var/log/nginx/error.log     # Meldungen von nginx
-curl -I https://giesbert.svetho.net          # Antwortet der Server, stimmen die Header?
-```
-
-- **Seite bleibt weiß:** In der Browser-Konsole (F12) nach Meldungen zur „Content-Security-Policy“ schauen.
-- **Online-Suche geht nicht:** Die CSP muss `connect-src … https://api.gbif.org` erlauben (steht so in der Konfiguration).
-- **Alte Fassung wird angezeigt:** Seite einmal neu laden; notfalls in den Browser-Einstellungen die Website-Daten löschen. **Vorher exportieren**, sonst sind die Pflanzen weg!
+   Hat das nicht geklappt, lässt sich die Sicherungsdatei aus Schritt 1 unter ⚙️ → „Importieren“ einspielen.
 
 ---
 
-## Daten & Sicherung
+## Aktualisieren
 
-Alles bleibt im Browser des jeweiligen Geräts – es gibt kein Konto und keine Synchronisation.
-Darum ab und zu über ⚙️ → „Exportieren“ eine Sicherung machen. Über „Importieren“ lassen sich die Pflanzen auch auf ein anderes Gerät übertragen.
+```sh
+cd /var/www/giesbert && git pull && sudo systemctl restart giesbert
+```
 
-Die Online-Suche schickt nur den eingetippten Pflanzennamen an `api.gbif.org`, sonst nichts.
+Hat sich `deploy/giesbert.service` geändert, die Datei erneut nach `/etc/systemd/system/` kopieren und `sudo systemctl daemon-reload` ausführen.
+Hat sich `deploy/nginx-giesbert.conf` geändert, die Datei erneut mit `sudo cp` nach `/etc/nginx/sites-available/giesbert` kopieren und danach `sudo certbot --nginx -d giesbert.svetho.net` noch einmal ausführen (siehe oben).
+
+## Wiederherstellen aus einer Sicherung
+
+```sh
+sudo systemctl stop giesbert
+sudo cp /var/backups/giesbert/giesbert-JJJJ-MM-TT.db /var/lib/giesbert/giesbert.db
+sudo rm -f /var/lib/giesbert/giesbert.db-wal /var/lib/giesbert/giesbert.db-shm
+sudo systemctl start giesbert
+```
+
+(`/var/lib/giesbert` ist bei `DynamicUser` ein Verweis auf `/var/lib/private/giesbert` – das ist so gewollt.)
+
+## Fehlersuche
+
+```sh
+journalctl -u giesbert -n 50                 # Meldungen des Dienstes
+sudo nginx -t                                # Konfiguration in Ordnung?
+sudo tail -n 50 /var/log/nginx/error.log     # Meldungen von nginx
+curl -s http://127.0.0.1:8090/api/plants     # Antwortet der Dienst direkt?
+```
+
+- **„502 Bad Gateway“:** Der Dienst läuft nicht – `systemctl status giesbert` und `journalctl -u giesbert` anschauen.
+- **Gelber Hinweis „Keine Verbindung zum Server“:** Die App erreicht `/api/` nicht. Änderungen gehen nicht verloren, sie werden nachgetragen, sobald der Server wieder antwortet.
+- **Kein Bild gefunden:** Nicht jede Pflanze hat einen Wikipedia-Artikel mit Foto. Dann einfach ein eigenes Foto hochladen. Schlägt die Suche immer fehl, prüfen, ob der Server Wikipedia erreicht: `curl -sI https://de.wikipedia.org | head -1`.
+- **Seite bleibt weiß:** In der Browser-Konsole (F12) nach Meldungen zur „Content-Security-Policy“ schauen.
+- **Online-Suche (GBIF) geht nicht:** Die CSP muss `connect-src … https://api.gbif.org` erlauben (steht so in der Konfiguration).
+
+---
+
+## Daten, Bilder & Datenschutz
+
+- Pflanzen, Fotos und Gieß-Verlauf liegen in **einer** Datei: `/var/lib/giesbert/giesbert.db`. Die nächtliche Sicherung kopiert sie komplett.
+- ⚙️ → „Exportieren“ speichert zusätzlich die Pflanzenliste als JSON-Datei (ohne Bilder). „Importieren“ spielt so eine Datei wieder ein: Pflanzen mit gleicher Kennung werden überschrieben, alle anderen bleiben.
+- Gelöschte Pflanzen landen 30 Tage im Papierkorb der Datenbank (dafür gibt es „Rückgängig“) und werden danach beim nächsten Start des Dienstes endgültig entfernt.
+- Eigene Fotos werden schon im Browser auf höchstens 1200 Pixel verkleinert und bleiben auf Deinem Server.
+- Für automatische Bilder fragt **der Server** (nicht Dein Browser) bei `de.wikipedia.org`, `en.wikipedia.org` und `commons.wikimedia.org` nach dem Pflanzennamen und lädt das Bild herunter. Die Bilder stehen unter freien Lizenzen; Urheber und Lizenz zeigt die App beim Bild an (auf die Pflanze tippen).
+- Die Online-Namenssuche schickt nur den eingetippten Pflanzennamen an `api.gbif.org`, sonst nichts.
 
 ## Pflegewerte anpassen
 
@@ -158,4 +231,4 @@ Die Datenbank steht in `public/plants.js`. Jeder Eintrag sieht so aus:
 | `f` | Düngeabstand in Tagen (März–September), `0` = nie düngen |
 | `h` | Kurzer Tipp (optional) |
 
-Die Werte sind Richtwerte für normale Wohnräume. Die Fingerprobe hat immer Recht. 🙂
+Die Werte gelten beim Anlegen einer Pflanze und werden dann in der Datenbank gespeichert. Die Werte sind Richtwerte für normale Wohnräume. Die Fingerprobe hat immer Recht. 🙂
