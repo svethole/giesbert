@@ -5,7 +5,7 @@ Liefert die Weboberfläche aus ./public aus und stellt eine JSON-Schnittstelle
 unter /api/ bereit. Pflanzen und Bilder liegen in einer SQLite-Datei.
 
 Aufruf:
-    python3 server.py                                  # startet auf 127.0.0.1:8090
+    python3 server.py                                  # startet auf 127.0.0.1:8097
     python3 server.py --port 9000 --db /pfad/zu/giesbert.db
 
 Der Server lauscht absichtlich nur auf 127.0.0.1. Zugriffsschutz (Passwort)
@@ -544,7 +544,7 @@ def main():
     global DB_PATH
     ap = argparse.ArgumentParser(description="Giesbert – Backend")
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=8090)
+    ap.add_argument("--port", type=int, default=8097)
     ap.add_argument("--db", default=str(DB_PATH), help="Pfad zur SQLite-Datei")
     args = ap.parse_args()
     DB_PATH = Path(args.db)

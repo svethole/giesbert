@@ -32,7 +32,7 @@ Die Datenbank (Standard: `data/giesbert.db`, auf dem Server `/var/lib/giesbert/g
 ## Lokal testen
 
 ```sh
-python3 server.py            # → http://127.0.0.1:8090
+python3 server.py            # → http://127.0.0.1:8097
 ```
 
 ---
@@ -84,7 +84,7 @@ sudo cp /var/www/giesbert/deploy/giesbert.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now giesbert
 systemctl status giesbert            # sollte „active (running)“ zeigen
-curl -s http://127.0.0.1:8090/api/plants   # → {"plants": []}
+curl -s http://127.0.0.1:8097/api/plants   # → {"plants": []}
 ```
 
 Optional: Wikimedia bittet darum, dass sich Programme mit einer Kontaktmöglichkeit ausweisen. Dafür `deploy/giesbert.env.example` nach `/etc/giesbert.env` kopieren, die Zeile anpassen und einkommentieren, dann `sudo chmod 600 /etc/giesbert.env && sudo systemctl restart giesbert`.
@@ -194,10 +194,11 @@ sudo systemctl start giesbert
 journalctl -u giesbert -n 50                 # Meldungen des Dienstes
 sudo nginx -t                                # Konfiguration in Ordnung?
 sudo tail -n 50 /var/log/nginx/error.log     # Meldungen von nginx
-curl -s http://127.0.0.1:8090/api/plants     # Antwortet der Dienst direkt?
+curl -s http://127.0.0.1:8097/api/plants     # Antwortet der Dienst direkt?
 ```
 
 - **„502 Bad Gateway“:** Der Dienst läuft nicht – `systemctl status giesbert` und `journalctl -u giesbert` anschauen.
+- **`OSError: [Errno 98] Address already in use`** im Journal: Ein anderes Programm belegt Port 8097 (`sudo ss -ltnp | grep 8097` zeigt, welches). Dann einen freien Port wählen und ihn in `/etc/systemd/system/giesbert.service` (`--port`) **und** in `/etc/nginx/sites-available/giesbert` (`proxy_pass`) eintragen, anschließend `sudo systemctl daemon-reload && sudo systemctl restart giesbert && sudo systemctl reload nginx`.
 - **Gelber Hinweis „Keine Verbindung zum Server“:** Die App erreicht `/api/` nicht. Änderungen gehen nicht verloren, sie werden nachgetragen, sobald der Server wieder antwortet.
 - **Kein Bild gefunden:** Nicht jede Pflanze hat einen Wikipedia-Artikel mit Foto. Dann einfach ein eigenes Foto hochladen. Schlägt die Suche immer fehl, prüfen, ob der Server Wikipedia erreicht: `curl -sI https://de.wikipedia.org | head -1`.
 - **Seite bleibt weiß:** In der Browser-Konsole (F12) nach Meldungen zur „Content-Security-Policy“ schauen.
