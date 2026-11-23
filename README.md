@@ -38,7 +38,9 @@ python3 -m http.server 8000      # → http://localhost:8000
 
 ## Einrichtung auf dem eigenen Server
 
-Die Befehle gehen von Debian/Ubuntu mit nginx aus (wie bei den anderen Projekten auf dem Hostinger-Server) und werden als root (bzw. mit `sudo`) ausgeführt.
+Die Befehle gehen von Debian/Ubuntu mit nginx aus (wie bei den anderen Projekten auf dem Hostinger-Server).
+
+Der Projektordner `/var/www/giesbert` gehört dem normalen Benutzer `svetho`. Darum laufen `git clone` und `git pull` **ohne** `sudo` – und nutzen so auch dessen SSH-Schlüssel. `sudo` braucht es nur für Paketinstallation, nginx und certbot.
 
 ### 1. DNS-Eintrag prüfen
 
@@ -58,11 +60,14 @@ dig +short giesbert.svetho.net
 ### 2. Dateien holen
 
 ```sh
-apt install git nginx certbot python3-certbot-nginx
+sudo apt install git nginx certbot python3-certbot-nginx
+sudo mkdir /var/www/giesbert && sudo chown svetho: /var/www/giesbert
 git clone git@github.com:svethole/giesbert.git /var/www/giesbert
 ```
 
-Dafür braucht der Server einen SSH-Schlüssel, den GitHub kennt. Prüfen lässt sich das mit `ssh -T git@github.com`: Kommt „Hi …! You've successfully authenticated“, passt alles.
+Wichtig: `git clone` **ohne** `sudo` – sonst sucht git den SSH-Schlüssel bei root (`/root/.ssh/`) und meldet „Permission denied (publickey)“.
+
+Der Benutzer `svetho` braucht dafür einen SSH-Schlüssel, den GitHub kennt. Prüfen lässt sich das (ebenfalls ohne `sudo`) mit `ssh -T git@github.com`: Kommt „Hi …! You've successfully authenticated“, passt alles.
 Wurde das Repo schon per https geklont, lässt es sich nachträglich umstellen:
 
 ```sh
@@ -74,9 +79,9 @@ Einen Dienst braucht es nicht – nginx liefert die Dateien direkt aus `/var/www
 ### 3. nginx einrichten
 
 ```sh
-cp /var/www/giesbert/deploy/nginx-giesbert.conf /etc/nginx/sites-available/giesbert
-ln -s /etc/nginx/sites-available/giesbert /etc/nginx/sites-enabled/giesbert
-nginx -t && systemctl reload nginx
+sudo cp /var/www/giesbert/deploy/nginx-giesbert.conf /etc/nginx/sites-available/giesbert
+sudo ln -s /etc/nginx/sites-available/giesbert /etc/nginx/sites-enabled/giesbert
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 Jetzt sollte http://giesbert.svetho.net die App zeigen.
@@ -84,7 +89,7 @@ Jetzt sollte http://giesbert.svetho.net die App zeigen.
 ### 4. HTTPS einschalten
 
 ```sh
-certbot --nginx -d giesbert.svetho.net
+sudo certbot --nginx -d giesbert.svetho.net
 ```
 
 Certbot ergänzt die HTTPS-Einstellungen und die Umleitung von http auf https selbst. **HTTPS ist Pflicht:** Ohne HTTPS funktionieren weder der Offline-Betrieb noch das Installieren am Handy.
@@ -100,11 +105,11 @@ Certbot ergänzt die HTTPS-Einstellungen und die Umleitung von http auf https se
 Eigentlich nicht nötig: Auf dem Server liegen keine persönlichen Daten, nur die App. Wer die Seite trotzdem nicht öffentlich haben will:
 
 ```sh
-apt install apache2-utils
-htpasswd -c /etc/nginx/htpasswd-giesbert DEINNAME
+sudo apt install apache2-utils
+sudo htpasswd -c /etc/nginx/htpasswd-giesbert DEINNAME
 ```
 
-Dann in `/etc/nginx/sites-available/giesbert` die beiden Zeilen `auth_basic …` einkommentieren (das `#` entfernen) und `nginx -t && systemctl reload nginx` ausführen. Die App ist dafür vorbereitet (das Manifest wird mit Anmeldedaten geladen), am Handy muss man sich dann aber gelegentlich neu anmelden.
+Dann in `/etc/nginx/sites-available/giesbert` die beiden Zeilen `auth_basic …` einkommentieren (das `#` entfernen, z. B. mit `sudo nano`) und `sudo nginx -t && sudo systemctl reload nginx` ausführen. Die App ist dafür vorbereitet (das Manifest wird mit Anmeldedaten geladen), am Handy muss man sich dann aber gelegentlich neu anmelden.
 
 ### Aktualisieren
 
@@ -112,14 +117,14 @@ Dann in `/etc/nginx/sites-available/giesbert` die beiden Zeilen `auth_basic …`
 cd /var/www/giesbert && git pull
 ```
 
-Mehr ist nicht nötig – kein Neustart. Weil nginx `Cache-Control: no-cache` schickt, holt sich der Browser die neue Fassung beim nächsten Öffnen.
-Hat sich `deploy/nginx-giesbert.conf` geändert, die Datei erneut nach `/etc/nginx/sites-available/giesbert` kopieren. **Achtung:** Dabei gehen die Ergänzungen von Certbot verloren – also danach `certbot --nginx -d giesbert.svetho.net` noch einmal ausführen (Certbot nimmt das vorhandene Zertifikat).
+Mehr ist nicht nötig – kein `sudo`, kein Neustart. Weil nginx `Cache-Control: no-cache` schickt, holt sich der Browser die neue Fassung beim nächsten Öffnen.
+Hat sich `deploy/nginx-giesbert.conf` geändert, die Datei erneut mit `sudo cp` nach `/etc/nginx/sites-available/giesbert` kopieren. **Achtung:** Dabei gehen die Ergänzungen von Certbot verloren – also danach `sudo certbot --nginx -d giesbert.svetho.net` noch einmal ausführen (Certbot nimmt das vorhandene Zertifikat).
 
 ### Fehlersuche
 
 ```sh
-nginx -t                                     # Konfiguration in Ordnung?
-tail -n 50 /var/log/nginx/error.log          # Meldungen von nginx
+sudo nginx -t                                # Konfiguration in Ordnung?
+sudo tail -n 50 /var/log/nginx/error.log     # Meldungen von nginx
 curl -I https://giesbert.svetho.net          # Antwortet der Server, stimmen die Header?
 ```
 
