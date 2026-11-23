@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Giesbert</title>
+  <meta name="description" content="Erinnert Dich ans Gießen Deiner Zimmerpflanzen – und sonst an nichts.">
+  <meta name="theme-color" content="#2f6b4f">
+  <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 64c-70 98-130 175-130 250a130 130 0 0 0 260 0c0-75-60-152-130-250z"/></svg>
+      <h1>Giesbert</h1>
+    </div>
+    <button class="icon-btn" id="btn-settings" aria-label="Einstellungen" title="Einstellungen">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="hero"></section>
+    <section id="list" aria-live="polite"></section>
+  </main>
+
+  <button class="fab" id="btn-add"><span aria-hidden="true">+</span> Pflanze</button>
+
+  <!-- Pflanze hinzufügen -->
+  <dialog id="dlg-add" class="sheet">
+    <form method="dialog" class="sheet-inner" id="form-add" autocomplete="off">
+      <header class="sheet-head">
+        <h2 id="add-title">Neue Pflanze</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+      </header>
+
+      <div id="step-search">
+        <label class="field">
+          <span>Wie heißt Deine Pflanze?</span>
+          <input type="search" id="search" placeholder="z. B. Einblatt oder Monstera deliciosa" enterkeyhint="search">
+        </label>
+        <ul class="results" id="results"></ul>
+        <div class="search-extra" id="search-extra"></div>
+      </div>
+
+      <div id="step-details" hidden>
+        <div class="picked" id="picked"></div>
+        <label class="field">
+          <span>Spitzname <small>(optional)</small></span>
+          <input type="text" id="nickname" placeholder="z. B. „Die Große im Wohnzimmer“" maxlength="60">
+        </label>
+        <fieldset class="field">
+          <legend>Wann hast Du zuletzt gegossen?</legend>
+          <div class="chips" id="last-chips">
+            <label><input type="radio" name="last" value="0" checked><span>Heute</span></label>
+            <label><input type="radio" name="last" value="1"><span>Gestern</span></label>
+            <label><input type="radio" name="last" value="3"><span>Vor ein paar Tagen</span></label>
+            <label><input type="radio" name="last" value="99"><span>Keine Ahnung</span></label>
+          </div>
+        </fieldset>
+        <div class="interval-box">
+          <div class="interval-row">
+            <span>Gießen etwa alle</span>
+            <div class="stepper">
+              <button type="button" data-step="-1" aria-label="Weniger Tage">−</button>
+              <output id="add-interval">7</output>
+              <button type="button" data-step="1" aria-label="Mehr Tage">+</button>
+            </div>
+            <span>Tage</span>
+          </div>
+          <p class="muted small" id="add-interval-note"></p>
+        </div>
+      </div>
+
+      <footer class="sheet-foot" id="add-foot" hidden>
+        <button type="button" class="btn ghost" id="btn-back">Zurück</button>
+        <button type="submit" class="btn primary" value="save" id="btn-save-new">Hinzufügen</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Pflanze bearbeiten -->
+  <dialog id="dlg-edit" class="sheet">
+    <form method="dialog" class="sheet-inner" id="form-edit" autocomplete="off">
+      <header class="sheet-head">
+        <h2 id="edit-title">Pflanze</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+      </header>
+      <p class="muted" id="edit-sub"></p>
+      <label class="field">
+        <span>Spitzname <small>(optional)</small></span>
+        <input type="text" id="edit-nickname" maxlength="60">
+      </label>
+      <label class="field">
+        <span>Zuletzt gegossen</span>
+        <input type="date" id="edit-last">
+      </label>
+      <div class="interval-box">
+        <label class="switch"><input type="checkbox" id="edit-auto"><span>Intervall automatisch an die Jahreszeit anpassen</span></label>
+        <div class="interval-row">
+          <span>Gießen etwa alle</span>
+          <div class="stepper">
+            <button type="button" data-step="-1" aria-label="Weniger Tage">−</button>
+            <output id="edit-interval">7</output>
+            <button type="button" data-step="1" aria-label="Mehr Tage">+</button>
+          </div>
+          <span>Tage</span>
+        </div>
+        <p class="muted small" id="edit-interval-note"></p>
+      </div>
+      <label class="switch"><input type="checkbox" id="edit-fert"><span>Hinweis zeigen, wenn Dünger gut täte</span></label>
+      <p class="hint" id="edit-hint" hidden></p>
+      <footer class="sheet-foot">
+        <button type="button" class="btn danger ghost" id="btn-delete">Entfernen</button>
+        <button type="submit" class="btn primary" value="save">Speichern</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Einstellungen -->
+  <dialog id="dlg-settings" class="sheet">
+    <form method="dialog" class="sheet-inner">
+      <header class="sheet-head">
+        <h2>Einstellungen</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+      </header>
+
+      <h3>Erinnerung</h3>
+      <p class="muted small">Eine Web-App kann Dich ohne eigenen Server nicht zuverlässig im Hintergrund anstupsen. Der einfachste Weg: ein wiederkehrender Kalendertermin, der Dich kurz zur Giesbert schickt.</p>
+      <div class="interval-row wrap">
+        <span>Erinnere mich</span>
+        <select id="ics-freq">
+          <option value="1">jeden Tag</option>
+          <option value="2" selected>jeden 2. Tag</option>
+          <option value="3">jeden 3. Tag</option>
+          <option value="7">einmal pro Woche</option>
+        </select>
+        <span>um</span>
+        <input type="time" id="ics-time" value="09:00">
+      </div>
+      <button type="button" class="btn" id="btn-ics">Kalendertermin herunterladen (.ics)</button>
+      <button type="button" class="btn ghost" id="btn-notify">Mitteilungen erlauben</button>
+      <p class="muted small" id="notify-note"></p>
+
+      <h3>Daten sichern</h3>
+      <p class="muted small">Deine Pflanzen werden nur in diesem Browser gespeichert. Mach ab und zu eine Sicherung – oder übertrage sie so auf ein anderes Gerät.</p>
+      <div class="row-btns">
+        <button type="button" class="btn" id="btn-export">Exportieren</button>
+        <button type="button" class="btn" id="btn-import">Importieren</button>
+        <input type="file" id="file-import" accept="application/json,.json" hidden>
+      </div>
+
+      <h3>Über die Werte</h3>
+      <p class="muted small">Die Gießintervalle sind Richtwerte für normale Wohnräume. Im Winter (November–Februar) brauchen die meisten Pflanzen deutlich weniger Wasser. Im Zweifel: Finger in die Erde – ist sie in 2&nbsp;cm Tiefe noch feucht, einfach „Morgen nochmal“ tippen.</p>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script src="plants.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

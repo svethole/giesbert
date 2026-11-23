@@ -1,0 +1,12 @@
+{
+  "name": "Giesbert",
+  "short_name": "Giesbert",
+  "description": "Erinnert Dich ans Gießen – und sonst an nichts.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f4ee",
+  "theme_color": "#2f6b4f",
+  "lang": "de",
+  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]
+}
