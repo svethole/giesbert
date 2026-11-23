@@ -55,7 +55,9 @@ const ls = {
 };
 
 async function api(method, path, body, isRaw = false) {
-  const opts = {method, headers: {}};
+  // redirect: 'manual' – ist die Portal-Anmeldung abgelaufen, leitet nginx aufs Portal um.
+  // Das soll als „bitte neu anmelden“ ankommen und nicht als Verbindungsfehler.
+  const opts = {method, headers: {}, redirect: 'manual'};
   if (body !== undefined) {
     if (isRaw) { opts.body = body; opts.headers['Content-Type'] = body.type || 'application/octet-stream'; }
     else { opts.body = JSON.stringify(body); opts.headers['Content-Type'] = 'application/json'; }
@@ -63,6 +65,11 @@ async function api(method, path, body, isRaw = false) {
   let res;
   try { res = await fetch('api/' + path, opts); }
   catch (e) { const err = new Error('offline'); err.offline = true; throw err; }
+  if (res.type === 'opaqueredirect' || res.status === 401) {
+    const err = new Error('Anmeldung abgelaufen'); err.offline = true; err.auth = true;
+    setLoginNeeded(true); throw err;
+  }
+  setLoginNeeded(false);
   let data = null;
   try { data = await res.json(); } catch (e) { /* kein JSON */ }
   if (!res.ok) { const err = new Error(data?.error || `Fehler ${res.status}`); err.status = res.status; throw err; }
@@ -103,6 +110,19 @@ function flushPending() {
     setOffline(false);
   })().finally(() => { flushing = null; });
   return flushing;
+}
+let loginNeeded = false;
+function setLoginNeeded(on) {
+  if (loginNeeded === on) return;
+  loginNeeded = on;
+  const box = $('#offline');
+  if (on) {
+    // Gleiche Form wie im nginx-Snippet svetho-sso-check.conf: ?ziel=https://host/pfad
+    const back = location.href.split('#')[0];
+    box.innerHTML = `Deine Anmeldung ist abgelaufen. <a href="https://svetho.net/portal/?ziel=${esc(back)}">Neu anmelden</a> – Deine Änderungen werden danach nachgetragen.`;
+  } else {
+    box.textContent = 'Keine Verbindung zum Server – Deine Änderungen werden nachgeholt, sobald er wieder erreichbar ist.';
+  }
 }
 function setOffline(off) {
   if (state.offline === off) return;

@@ -63,7 +63,7 @@ dig +short giesbert.svetho.net
 ### 2. Dateien holen
 
 ```sh
-sudo apt install git python3 nginx certbot python3-certbot-nginx apache2-utils
+sudo apt install git python3 nginx certbot python3-certbot-nginx
 sudo mkdir /var/www/giesbert && sudo chown svetho: /var/www/giesbert
 git clone git@github.com:svethole/giesbert.git /var/www/giesbert
 ```
@@ -89,15 +89,21 @@ curl -s http://127.0.0.1:8097/api/plants   # → {"plants": []}
 
 Optional: Wikimedia bittet darum, dass sich Programme mit einer Kontaktmöglichkeit ausweisen. Dafür `deploy/giesbert.env.example` nach `/etc/giesbert.env` kopieren, die Zeile anpassen und einkommentieren, dann `sudo chmod 600 /etc/giesbert.env && sudo systemctl restart giesbert`.
 
-### 4. Passwort festlegen
+### 4. Anmeldung über das svetho-Portal
 
-Weil die Pflanzen und Fotos jetzt auf dem Server liegen, ist die Seite mit Benutzername und Passwort geschützt:
+Giesbert hat keine eigene Passwortabfrage. Wie bei den anderen Subdomains läuft die Anmeldung über das [svetho-Portal](https://github.com/svethole/svetho-portal): einmal auf `https://svetho.net/anmelden` anmelden, dann ist man auch bei Giesbert drin. In der nginx-Datei sorgt dafür die Zeile
 
-```sh
-sudo htpasswd -c /etc/nginx/htpasswd-giesbert DEINNAME
+```nginx
+include snippets/svetho-sso-check.conf;
 ```
 
-(`-c` legt die Datei neu an – für weitere Benutzer ohne `-c` aufrufen.)
+Voraussetzung ist also, dass das Portal eingerichtet ist (`install.sh` legt `/etc/nginx/snippets/svetho-sso-check.conf` an). Kurz prüfen:
+
+```sh
+ls /etc/nginx/snippets/svetho-sso-check.conf /etc/nginx/conf.d/svetho-sso.conf
+```
+
+Ist die Anmeldung abgelaufen (das Cookie gilt 30 Tage), zeigt Giesbert oben einen Hinweis mit Link „Neu anmelden“. Änderungen, die in der Zwischenzeit gemacht wurden, gehen nicht verloren – sie werden nach der Anmeldung nachgetragen.
 
 ### 5. nginx einrichten
 
@@ -113,7 +119,7 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d giesbert.svetho.net
 ```
 
-Certbot ergänzt die HTTPS-Einstellungen und die Umleitung von http auf https selbst. **HTTPS ist Pflicht:** Ohne HTTPS funktionieren weder der Offline-Betrieb noch das Installieren am Handy – und das Passwort ginge unverschlüsselt durchs Netz.
+Certbot ergänzt die HTTPS-Einstellungen und die Umleitung von http auf https selbst. **HTTPS ist Pflicht:** Ohne HTTPS funktionieren weder der Offline-Betrieb noch das Installieren am Handy – und das Anmelde-Cookie des Portals wird nur über HTTPS geschickt.
 
 ### 7. Tägliche Sicherung
 
@@ -140,6 +146,40 @@ sudo /var/www/giesbert/deploy/backup.sh && sudo ls -la /var/backups/giesbert
 - Am Handy: im Browser-Menü „Zum Home-Bildschirm“ bzw. „App installieren“ wählen.
 - In den Einstellungen (⚙️) den Kalendertermin herunterladen und in den eigenen Kalender importieren.
 
+### 9. Kachel im Portal (optional)
+
+Damit Giesbert im Portal auftaucht, in `public/portal/projekte.json` des Portals bei `projekte` ergänzen:
+
+```json
+{ "id": "giesbert", "name": "Giesbert", "thema": "alltag", "url": "https://giesbert.svetho.net",
+  "text": "Erinnert mich ans Gießen meiner Zimmerpflanzen – und sonst an nichts.", "symbol": "🪴", "farbe": "#dcefe3" }
+```
+
+Das Vorschaubild erstellt das Portal in der folgenden Nacht von selbst.
+
+---
+
+## Von htpasswd auf die Portal-Anmeldung umstellen
+
+Für alle, bei denen Giesbert schon mit eigenem Passwort (`htpasswd-giesbert`) läuft:
+
+```sh
+cd /var/www/giesbert && git pull && sudo systemctl restart giesbert
+sudo cp deploy/nginx-giesbert.conf /etc/nginx/sites-available/giesbert
+sudo certbot --nginx -d giesbert.svetho.net     # „1: Attempt to reinstall …“ wählen
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Wer die bisherige Datei mit den Certbot-Ergänzungen lieber behält, kann stattdessen auch nur in `/etc/nginx/sites-available/giesbert` die beiden Zeilen `auth_basic …` und `auth_basic_user_file …` durch `include snippets/svetho-sso-check.conf;` ersetzen (genau wie bei den anderen Subdomains) und die Zeile `auth_basic off;` im `acme-challenge`-Block löschen.
+
+Danach wird die alte Passwortdatei nicht mehr gebraucht:
+
+```sh
+sudo rm /etc/nginx/htpasswd-giesbert
+```
+
+Achtung: Der Browser hat sich das alte htpasswd-Passwort eventuell gemerkt. Fragt er nach der Umstellung nicht mehr, ist alles richtig – fragt er doch noch, einmal den Browser ganz schließen.
+
 ---
 
 ## Umstieg auf die Datenbank-Fassung
@@ -153,7 +193,7 @@ Für alle, bei denen schon die erste, rein statische Fassung läuft (nginx liefe
    cd /var/www/giesbert && git pull
    ```
 
-3. Schritte [3. Dienst](#3-dienst-einrichten-und-starten), [4. Passwort](#4-passwort-festlegen) und [5. nginx](#5-nginx-einrichten) ausführen. Beim `ln -s` meldet sich ein „File exists“ – das ist in Ordnung, die Verknüpfung gibt es ja schon.
+3. Schritte [3. Dienst](#3-dienst-einrichten-und-starten), [4. Anmeldung](#4-anmeldung-über-das-svetho-portal) und [5. nginx](#5-nginx-einrichten) ausführen. Beim `ln -s` meldet sich ein „File exists“ – das ist in Ordnung, die Verknüpfung gibt es ja schon.
 4. Weil die nginx-Datei ersetzt wurde, sind die HTTPS-Ergänzungen von Certbot weg. Also noch einmal:
 
    ```sh
